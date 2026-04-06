@@ -9,6 +9,8 @@ A Python application that finds valid email addresses by testing common permutat
   - **Syntax**: Fast format validation only
   - **MX Record**: Checks if domain has mail servers
   - **SMTP**: Attempts to verify email existence (most thorough)
+- **Hunter.io API Integration**: Fallback to Hunter.io when SMTP verification fails
+- Two-phase validation: SMTP first, then Hunter.io if needed
 - Stops at first valid email found
 - Caps at 100 permutation attempts
 - Progress tracking for each attempt
@@ -88,6 +90,43 @@ The tool generates permutations including:
 - Some servers may block or limit verification attempts
 - Falls back to MX validation if SMTP verification is blocked
 
+### 4. Hunter.io Fallback (Premium)
+- Uses Hunter.io Email Verifier API when SMTP fails
+- Bypasses anti-enumeration protection
+- Two-phase approach: tries SMTP first, Hunter.io second
+- Requires Hunter.io API key (free tier: 25 requests/month)
+- Most reliable for domains that block SMTP verification
+
+**Setup:**
+1. Sign up at [hunter.io](https://hunter.io)
+2. Get your API key from the dashboard
+3. Set environment variable: `export HUNTER_API_KEY='your_key_here'`
+4. Or pass it directly when running
+
+**Programmatic usage with Hunter.io:**
+```python
+from email_finder import find_valid_email
+
+# Two-phase validation: SMTP → Hunter.io
+email = find_valid_email(
+    "Anuj",
+    "Patel",
+    "saronic.com",
+    validation_method="smtp",
+    hunter_api_key="your_api_key",  # or None to use env var
+    use_hunter_fallback=True
+)
+```
+
+**Command line:**
+```bash
+# Set API key
+export HUNTER_API_KEY='your_api_key_here'
+
+# Run with fallback enabled
+python3 test_hunter_fallback.py
+```
+
 ## Important Notes
 
 - **Rate Limiting**: Some mail servers may rate-limit or block verification attempts. Use responsibly.
@@ -133,6 +172,7 @@ SUCCESS! Valid email found: aliyah.wimbish@ngc.com
 - Check if your network allows outbound connections on port 25
 - Try using MX validation instead
 - Some corporate networks block SMTP
+- **Solution**: Use Hunter.io fallback for domains with anti-enumeration protection
 
 **Issue**: All emails show as valid
 - The mail server might be accepting all addresses during verification

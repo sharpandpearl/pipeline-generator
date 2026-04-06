@@ -4,10 +4,12 @@ Email Finder - Finds valid email addresses by testing common permutations
 """
 
 import dns.resolver
+import os
 import re
+import requests
 import smtplib
 import socket
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 
 def generate_email_permutations(first_name: str, last_name: str, domain: str) -> List[str]:
@@ -188,8 +190,78 @@ def validate_email_smtp(email: str) -> bool:
         return False
 
 
+def validate_email_hunter(email: str, api_key: Optional[str] = None) -> Dict[str, any]:
+    """
+    Validate email using Hunter.io Email Verifier API.
+
+    Args:
+        email: Email address to validate
+        api_key: Hunter.io API key (or set HUNTER_API_KEY environment variable)
+
+    Returns:
+        Dict with 'valid' (bool) and 'details' (dict) keys
+    """
+    if not api_key:
+        api_key = os.getenv('HUNTER_API_KEY')
+
+    if not api_key:
+        return {
+            'valid': False,
+            'details': {'error': 'No Hunter.io API key provided. Set HUNTER_API_KEY environment variable.'}
+        }
+
+    try:
+        url = 'https://api.hunter.io/v2/email-verifier'
+        params = {
+            'email': email,
+            'api_key': api_key
+        }
+
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+
+        data = response.json()
+
+        if 'data' in data:
+            result = data['data'].get('result', 'unknown')
+            score = data['data'].get('score', 0)
+            status = data['data'].get('status', 'unknown')
+
+            # Consider email valid if result is 'deliverable' or score > 70
+            is_valid = result == 'deliverable' or (status == 'valid' and score > 70)
+
+            return {
+                'valid': is_valid,
+                'details': {
+                    'result': result,
+                    'score': score,
+                    'status': status,
+                    'smtp_check': data['data'].get('smtp_check', False),
+                    'accept_all': data['data'].get('accept_all', False)
+                }
+            }
+        else:
+            return {
+                'valid': False,
+                'details': {'error': 'Unexpected response format from Hunter.io'}
+            }
+
+    except requests.exceptions.RequestException as e:
+        return {
+            'valid': False,
+            'details': {'error': f'Hunter.io API error: {str(e)}'}
+        }
+    except Exception as e:
+        return {
+            'valid': False,
+            'details': {'error': f'Unexpected error: {str(e)}'}
+        }
+
+
 def find_valid_email(first_name: str, last_name: str, domain: str,
-                     validation_method: str = 'smtp') -> Optional[str]:
+                     validation_method: str = 'smtp',
+                     hunter_api_key: Optional[str] = None,
+                     use_hunter_fallback: bool = False) -> Optional[str]:
     """
     Find a valid email address from permutations.
 
@@ -198,6 +270,8 @@ def find_valid_email(first_name: str, last_name: str, domain: str,
         last_name: Last name
         domain: Company domain
         validation_method: 'syntax', 'mx', or 'smtp' (default: 'smtp')
+        hunter_api_key: Hunter.io API key for fallback validation
+        use_hunter_fallback: If True, use Hunter.io after initial validation fails
 
     Returns:
         Valid email address if found, None otherwise
@@ -205,8 +279,13 @@ def find_valid_email(first_name: str, last_name: str, domain: str,
     permutations = generate_email_permutations(first_name, last_name, domain)
 
     print(f"Generated {len(permutations)} email permutations to test...")
-    print(f"Validation method: {validation_method}\n")
+    print(f"Validation method: {validation_method}")
+    if use_hunter_fallback:
+        print(f"Hunter.io fallback: ENABLED\n")
+    else:
+        print()
 
+    # Phase 1: Try initial validation method (SMTP/MX/Syntax)
     for i, email in enumerate(permutations, 1):
         print(f"[{i}/{len(permutations)}] Testing: {email}", end=" ... ")
 
@@ -231,6 +310,40 @@ def find_valid_email(first_name: str, last_name: str, domain: str,
             return email
         else:
             print("Not found")
+
+    # Phase 2: Try Hunter.io fallback if enabled and no results from Phase 1
+    if use_hunter_fallback:
+        print("\n" + "=" * 60)
+        print("Phase 1 complete. No valid email found.")
+        print("Starting Phase 2: Hunter.io verification...")
+        print("=" * 60 + "\n")
+
+        for i, email in enumerate(permutations, 1):
+            print(f"[{i}/{len(permutations)}] Hunter.io: {email}", end=" ... ")
+
+            # Check syntax first
+            if not validate_email_syntax(email):
+                print("Invalid syntax")
+                continue
+
+            # Validate with Hunter.io
+            hunter_result = validate_email_hunter(email, hunter_api_key)
+
+            if 'error' in hunter_result['details']:
+                print(f"Error: {hunter_result['details']['error']}")
+                # If API key error, stop trying Hunter.io
+                if 'API key' in hunter_result['details']['error']:
+                    print("\n⚠️  Hunter.io validation stopped: API key issue")
+                    break
+                continue
+
+            if hunter_result['valid']:
+                details = hunter_result['details']
+                print(f"VALID! (score: {details['score']}, result: {details['result']})")
+                return email
+            else:
+                details = hunter_result['details']
+                print(f"Not deliverable (score: {details.get('score', 'N/A')})")
 
     return None
 
@@ -257,12 +370,28 @@ def main():
     method_map = {'1': 'syntax', '2': 'mx', '3': 'smtp', '': 'smtp'}
     validation_method = method_map.get(method_choice, 'smtp')
 
+    # Ask about Hunter.io fallback
+    hunter_choice = input("\nUse Hunter.io fallback if no results? (y/n) [default: n]: ").strip().lower()
+    use_hunter_fallback = hunter_choice in ['y', 'yes']
+
+    hunter_api_key = None
+    if use_hunter_fallback:
+        api_key_input = input("Enter Hunter.io API key (or press Enter to use HUNTER_API_KEY env var): ").strip()
+        hunter_api_key = api_key_input if api_key_input else None
+
     print("\n" + "=" * 60)
     print("Starting email search...")
     print("=" * 60 + "\n")
 
     # Find valid email
-    valid_email = find_valid_email(first_name, last_name, domain, validation_method)
+    valid_email = find_valid_email(
+        first_name,
+        last_name,
+        domain,
+        validation_method,
+        hunter_api_key,
+        use_hunter_fallback
+    )
 
     print("\n" + "=" * 60)
     if valid_email:

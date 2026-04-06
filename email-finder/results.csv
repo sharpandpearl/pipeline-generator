@@ -1,0 +1,18 @@
+first_name,last_name,title,company,domain,email,status,method,notes
+Lindsey,Warner,Federal Solutions Manager,Pryon,pryon.com,lindsey.warner@pryon.com,FOUND,smtp + Hunter.io,
+A.J.,Rivero,Systems Engineer,Saronic Technologies,saronic.com,,NOT_FOUND,smtp,No valid email found after all attempts
+Nick,Alviggi,Solutions Manager,Pryon,pryon.com,nick.alviggi@pryon.com,FOUND,smtp + Hunter.io,
+Jorge,Vidaurri,Senior Network Engineer,Saronic Technologies,saronic.com,jorge.vidaurri@saronic.com,FOUND,smtp + Hunter.io,
+John,Harris,Principal Solutions Manager - Enterprise AI Systems,Pryon,pryon.com,john.harris@pryon.com,FOUND,smtp + Hunter.io,
+Andrew,Chen,Senior Solution Manager,Pryon,pryon.com,andrew.chen@pryon.com,FOUND,smtp + Hunter.io,
+Norris,K,Senior Director Military Assurance & Federal Solutions,Pryon,pryon.com,norris.k@pryon.com,FOUND,smtp + Hunter.io,
+Anna,Cheng,Solutions Manager,Pryon,pryon.com,anna.cheng@pryon.com,FOUND,smtp + Hunter.io,
+Brandon,Hoge,Solutions Manager,Pryon,pryon.com,brandon.hoge@pryon.com,FOUND,smtp + Hunter.io,
+Sheridan,Clemens,Director Information Security and IT,Pryon,pryon.com,sheridan.clemens@pryon.com,FOUND,smtp + Hunter.io,
+Ruddy,Melendez,Director Information Technology,Pryon,pryon.com,ruddy.melendez@pryon.com,FOUND,smtp + Hunter.io,
+Yurdaer,Doganata,Chief Technology Officer,Unknown,unknown.com,,SKIPPED,N/A,Missing required fields
+Angel,E,Director of Information Technology,Accrete,accrete.ai,,NOT_FOUND,smtp,No valid email found after all attempts
+Arturo,Castellanos,Director of IT,Saronic Technologies,saronic.com,arturo.castellanos@saronic.com,FOUND,smtp + Hunter.io,
+Alifya,K,SVP Technology & Research,Pryon,pryon.com,alifya.k@pryon.com,FOUND,smtp + Hunter.io,
+Mayur,Juthani,Enterprise Architect,Saronic Technologies,saronic.com,mayur.juthani@saronic.com,FOUND,smtp + Hunter.io,
+Anuj,Patel,Senior Director Enterprise Technology,Saronic Technologies,saronic.com,anuj.patel@saronic.com,FOUND,smtp + Hunter.io,
