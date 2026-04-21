@@ -9,7 +9,10 @@
       "Bash(cat *)",
       "Bash(mkdir *)",
       "Bash(cp *)",
-      "Bash(mv *)"
+      "Bash(mv *)",
+      "Bash(python email_finder.py eQube_contactlist.csv mx)",
+      "Bash(python -c \"import dns.resolver; import requests; print\\('Dependencies OK'\\)\")",
+      "Bash(pip install:*)"
     ],
     "deny": [
       "Bash(rm -rf /)",
@@ -20,12 +23,17 @@
   "mcpServers": {
     "context7": {
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
     },
     "playwright": {
       "type": "stdio",
       "command": "npx",
-      "args": ["@playwright/mcp@latest"],
+      "args": [
+        "@playwright/mcp@latest"
+      ],
       "env": {}
     }
   }

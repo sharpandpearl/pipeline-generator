@@ -24,7 +24,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Interactive Mode
+### Interactive Mode (Single Email)
 
 Run the script and follow the prompts:
 
@@ -40,18 +40,64 @@ Enter company domain (e.g., ngc.com): ngc.com
 Choose validation method (1/2/3) [default: 3]: 3
 ```
 
+### CSV Batch Mode (Multiple Emails)
+
+Process multiple people from a CSV file:
+
+```bash
+python email_finder.py input.csv
+```
+
+Or in interactive mode, provide a CSV path when prompted for first name:
+```bash
+python email_finder.py
+Enter first name (or CSV path for batch mode): sample_input.csv
+```
+
+**CSV Format:**
+```csv
+first_name,last_name,domain
+Aliyah,Wimbish,ngc.com
+John,Doe,example.com
+Jane,Smith,company.com
+```
+
+The script will:
+- Process each row in the CSV
+- Find valid emails for each person
+- Generate a timestamped output CSV (e.g., `email_results_20260415_143022.csv`)
+- Display a summary of results
+
+**Output CSV Format:**
+```csv
+first_name,last_name,domain,email,status
+Aliyah,Wimbish,ngc.com,aliyah.wimbish@ngc.com,FOUND
+John,Doe,example.com,,NOT FOUND
+Jane,Smith,company.com,jane.smith@company.com,FOUND
+```
+
 ### Programmatic Usage
 
 ```python
-from email_finder import find_valid_email
+from email_finder import find_valid_email, process_csv_file
 
-# Find valid email with SMTP validation (recommended)
+# Single email lookup
 email = find_valid_email("Aliyah", "Wimbish", "ngc.com", validation_method="smtp")
 
 if email:
     print(f"Found: {email}")
 else:
     print("No valid email found")
+
+# Batch CSV processing
+results = process_csv_file(
+    "input.csv",
+    validation_method="smtp",
+    output_path="custom_output.csv"
+)
+
+for result in results:
+    print(f"{result['first_name']} {result['last_name']}: {result['email'] or 'Not found'}")
 ```
 
 ## Email Permutations Generated

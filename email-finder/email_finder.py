@@ -3,12 +3,14 @@
 Email Finder - Finds valid email addresses by testing common permutations
 """
 
+import csv
 import dns.resolver
 import os
 import re
 import requests
 import smtplib
 import socket
+from datetime import datetime
 from typing import Optional, List, Dict
 
 
@@ -348,15 +350,219 @@ def find_valid_email(first_name: str, last_name: str, domain: str,
     return None
 
 
+def process_csv_file(csv_path: str, validation_method: str = 'smtp',
+                     hunter_api_key: Optional[str] = None,
+                     use_hunter_fallback: bool = False,
+                     output_path: Optional[str] = None) -> List[Dict[str, str]]:
+    """
+    Process a CSV file with names and domains to find valid email addresses.
+
+    Args:
+        csv_path: Path to input CSV file (must have columns: first_name, last_name, domain)
+        validation_method: 'syntax', 'mx', or 'smtp' (default: 'smtp')
+        hunter_api_key: Hunter.io API key for fallback validation
+        use_hunter_fallback: If True, use Hunter.io after initial validation fails
+        output_path: Optional path to save results CSV (auto-generated if None)
+
+    Returns:
+        List of result dictionaries with keys: first_name, last_name, domain, email, status
+    """
+    results = []
+
+    # Read CSV file
+    try:
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+
+            # Validate required columns
+            required_columns = {'first_name', 'last_name', 'domain'}
+            if not required_columns.issubset(reader.fieldnames or []):
+                print(f"ERROR: CSV must have columns: {', '.join(required_columns)}")
+                print(f"   Found columns: {', '.join(reader.fieldnames or [])}")
+                return results
+
+            rows = list(reader)
+
+    except FileNotFoundError:
+        print(f"ERROR: File not found: {csv_path}")
+        return results
+    except Exception as e:
+        print(f"ERROR reading CSV: {e}")
+        return results
+
+    total_rows = len(rows)
+    print(f"\nProcessing {total_rows} entries from CSV...")
+    print(f"Validation method: {validation_method}")
+    print(f"Hunter.io fallback: {'ENABLED' if use_hunter_fallback else 'DISABLED'}")
+    print("=" * 80 + "\n")
+
+    # Process each row
+    for idx, row in enumerate(rows, 1):
+        first_name = row.get('first_name', '').strip()
+        last_name = row.get('last_name', '').strip()
+        domain = row.get('domain', '').strip()
+
+        print(f"\n[{idx}/{total_rows}] Processing: {first_name} {last_name} @ {domain}")
+        print("-" * 80)
+
+        if not all([first_name, last_name, domain]):
+            print("WARNING: Skipping - Missing required data")
+            results.append({
+                'first_name': first_name,
+                'last_name': last_name,
+                'domain': domain,
+                'email': '',
+                'status': 'SKIPPED - Missing data'
+            })
+            continue
+
+        # Find valid email
+        valid_email = find_valid_email(
+            first_name,
+            last_name,
+            domain,
+            validation_method,
+            hunter_api_key,
+            use_hunter_fallback
+        )
+
+        if valid_email:
+            print(f"\n[SUCCESS] {valid_email}")
+            results.append({
+                'first_name': first_name,
+                'last_name': last_name,
+                'domain': domain,
+                'email': valid_email,
+                'status': 'FOUND'
+            })
+        else:
+            print(f"\n[NOT FOUND]")
+            results.append({
+                'first_name': first_name,
+                'last_name': last_name,
+                'domain': domain,
+                'email': '',
+                'status': 'NOT FOUND'
+            })
+
+    # Save results to output CSV
+    if not output_path:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_path = f"email_results_{timestamp}.csv"
+
+    try:
+        with open(output_path, 'w', newline='', encoding='utf-8') as f:
+            fieldnames = ['first_name', 'last_name', 'domain', 'email', 'status']
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(results)
+
+        print("\n" + "=" * 80)
+        print(f"Results Summary:")
+        print(f"   Total processed: {total_rows}")
+        print(f"   Emails found: {sum(1 for r in results if r['status'] == 'FOUND')}")
+        print(f"   Not found: {sum(1 for r in results if r['status'] == 'NOT FOUND')}")
+        print(f"   Skipped: {sum(1 for r in results if r['status'].startswith('SKIPPED'))}")
+        print(f"\nResults saved to: {output_path}")
+        print("=" * 80)
+
+    except Exception as e:
+        print(f"\nWARNING: Could not save results to CSV: {e}")
+        print("Results still returned in memory.")
+
+    return results
+
+
 def main():
     """Main function to run the email finder."""
+    import sys
+
     print("=" * 60)
     print("Email Address Finder")
     print("=" * 60)
     print()
 
+    # Check if CSV file path provided as command-line argument
+    if len(sys.argv) > 1:
+        csv_path = sys.argv[1]
+
+        # Get validation method from command line or prompt
+        if len(sys.argv) > 2:
+            validation_method = sys.argv[2]
+            # Non-interactive mode: use defaults for Hunter.io and output path
+            use_hunter_fallback = False
+            hunter_api_key = None
+            output_path = None
+        else:
+            # Interactive mode with CSV: prompt for all options
+            print("Validation methods:")
+            print("1. syntax - Fast, only checks format (no actual validation)")
+            print("2. mx     - Medium, checks if domain has mail servers")
+            print("3. smtp   - Thorough, attempts to verify email existence (recommended)")
+            method_choice = input("\nChoose validation method (1/2/3) [default: 3]: ").strip()
+            method_map = {'1': 'syntax', '2': 'mx', '3': 'smtp', '': 'smtp'}
+            validation_method = method_map.get(method_choice, 'smtp')
+
+            # Ask about Hunter.io fallback
+            hunter_choice = input("\nUse Hunter.io fallback if no results? (y/n) [default: n]: ").strip().lower()
+            use_hunter_fallback = hunter_choice in ['y', 'yes']
+
+            hunter_api_key = None
+            if use_hunter_fallback:
+                api_key_input = input("Enter Hunter.io API key (or press Enter to use HUNTER_API_KEY env var): ").strip()
+                hunter_api_key = api_key_input if api_key_input else None
+
+            # Get output path
+            output_input = input("\nOutput CSV path (press Enter for auto-generated): ").strip()
+            output_path = output_input if output_input else None
+
+        # Process CSV file
+        process_csv_file(
+            csv_path,
+            validation_method,
+            hunter_api_key,
+            use_hunter_fallback,
+            output_path
+        )
+        return
+
+    # Interactive mode (original functionality)
     # Get user input
-    first_name = input("Enter first name: ").strip()
+    first_name = input("Enter first name (or CSV path for batch mode): ").strip()
+
+    # Check if user provided a CSV path in interactive mode
+    if first_name.lower().endswith('.csv') and os.path.exists(first_name):
+        print(f"\nDetected CSV file: {first_name}")
+        print("Switching to batch mode...\n")
+
+        print("Validation methods:")
+        print("1. syntax - Fast, only checks format (no actual validation)")
+        print("2. mx     - Medium, checks if domain has mail servers")
+        print("3. smtp   - Thorough, attempts to verify email existence (recommended)")
+        method_choice = input("\nChoose validation method (1/2/3) [default: 3]: ").strip()
+        method_map = {'1': 'syntax', '2': 'mx', '3': 'smtp', '': 'smtp'}
+        validation_method = method_map.get(method_choice, 'smtp')
+
+        hunter_choice = input("\nUse Hunter.io fallback if no results? (y/n) [default: n]: ").strip().lower()
+        use_hunter_fallback = hunter_choice in ['y', 'yes']
+
+        hunter_api_key = None
+        if use_hunter_fallback:
+            api_key_input = input("Enter Hunter.io API key (or press Enter to use HUNTER_API_KEY env var): ").strip()
+            hunter_api_key = api_key_input if api_key_input else None
+
+        output_input = input("\nOutput CSV path (press Enter for auto-generated): ").strip()
+        output_path = output_input if output_input else None
+
+        process_csv_file(
+            first_name,
+            validation_method,
+            hunter_api_key,
+            use_hunter_fallback,
+            output_path
+        )
+        return
+
     last_name = input("Enter last name: ").strip()
     domain = input("Enter company domain (e.g., ngc.com): ").strip()
 

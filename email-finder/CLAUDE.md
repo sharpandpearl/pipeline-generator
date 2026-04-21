@@ -14,6 +14,7 @@ pipeline-generator/
     ├── email_finder.py           # Main application (core logic)
     ├── test_email_finder.py      # Test script with example usage
     ├── show_permutations.py      # Utility to preview permutations
+    ├── sample_input.csv          # Example CSV format for batch processing
     ├── requirements.txt          # Python dependencies
     ├── README_EMAIL_FINDER.md    # User-facing documentation
     └── CLAUDE.md                 # This file - project documentation for Claude Code
@@ -28,12 +29,20 @@ pipeline-generator/
 - `validate_email_syntax()` - Regex-based format validation
 - `check_mx_records()` - DNS validation for mail exchange records
 - `validate_email_smtp()` - SMTP-based email existence verification
+- `validate_email_hunter()` - Hunter.io API-based validation (premium)
 - `find_valid_email()` - Main orchestration function (stops at first valid email)
+- `process_csv_file()` - Batch processing for multiple people from CSV input
 
 **Validation Methods**:
 1. **Syntax**: Fast format-only validation
 2. **MX**: Checks if domain can receive mail
 3. **SMTP**: Attempts to verify email existence (default, most thorough)
+4. **Hunter.io**: Premium API fallback when SMTP is blocked
+
+**Operating Modes**:
+1. **Interactive Mode**: Single person lookup via terminal prompts
+2. **CSV Batch Mode**: Process multiple people from CSV file
+3. **Programmatic Mode**: Import and use functions directly in Python code
 
 ## Development Guidelines
 
@@ -71,16 +80,30 @@ python3 test_email_finder.py  # Run with example data
 python3 show_permutations.py  # Preview permutations without validation
 ```
 
-**Interactive Testing**:
+**Interactive Testing (Single Email)**:
 ```bash
 cd email-finder
 python3 email_finder.py  # Run in interactive mode
 ```
 
+**CSV Batch Testing**:
+```bash
+cd email-finder
+python3 email_finder.py sample_input.csv  # Process CSV file
+```
+
 **Programmatic Testing**:
 ```python
+# Single email lookup
 from email_finder import find_valid_email
 email = find_valid_email("FirstName", "LastName", "domain.com", "smtp")
+
+# CSV batch processing
+from email_finder import process_csv_file
+results = process_csv_file("input.csv", "smtp", output_path="results.csv")
+for result in results:
+    if result['status'] == 'FOUND':
+        print(f"{result['email']}")
 ```
 
 ### Performance Considerations
@@ -149,18 +172,28 @@ email = find_valid_email("FirstName", "LastName", "domain.com", "smtp")
 - SMTP validation is inherently slow (10s per check)
 - Use MX validation for faster results
 - Consider syntax validation for format-only checks
+- For CSV batch mode: expect ~10-60 seconds per person with SMTP validation
+
+### Issue: CSV file not recognized
+**Solution**:
+- Ensure CSV has required columns: `first_name`, `last_name`, `domain`
+- Check file encoding is UTF-8
+- Verify column headers match exactly (case-sensitive)
+- Check for proper CSV formatting (commas, no extra quotes)
 
 ## Future Enhancements
 
 Potential improvements to consider:
-- [ ] Async/parallel validation to speed up SMTP checks
+- [ ] Async/parallel validation to speed up SMTP checks (especially for CSV batch mode)
 - [ ] Machine learning to predict most likely permutations
 - [ ] Company-specific pattern detection (e.g., tech companies often use first.last)
 - [ ] Caching of MX records to avoid repeated DNS lookups
-- [ ] Export results to CSV/JSON
-- [ ] Batch processing for multiple names
+- [x] Export results to CSV/JSON (✅ Implemented)
+- [x] Batch processing for multiple names (✅ Implemented via CSV input)
 - [ ] Integration with LinkedIn/company directory APIs
 - [ ] Custom permutation templates per company
+- [ ] Progress bar for CSV batch processing
+- [ ] Resume capability for interrupted CSV processing
 
 ## Examples
 
@@ -187,6 +220,50 @@ perms = generate_email_permutations("Aliyah", "Wimbish", "ngc.com")
 for p in perms:
     print(p)
 # Output: aliyah.wimbish@ngc.com, awimbish@ngc.com, ...
+```
+
+### CSV Batch Processing
+```python
+from email_finder import process_csv_file
+
+# Process CSV with SMTP validation
+results = process_csv_file(
+    csv_path="input.csv",
+    validation_method="smtp",
+    output_path="results.csv"
+)
+
+# Check results
+for result in results:
+    if result['status'] == 'FOUND':
+        print(f"✅ {result['first_name']} {result['last_name']}: {result['email']}")
+    else:
+        print(f"❌ {result['first_name']} {result['last_name']}: Not found")
+
+# With Hunter.io fallback
+results = process_csv_file(
+    csv_path="input.csv",
+    validation_method="smtp",
+    hunter_api_key="your_api_key",
+    use_hunter_fallback=True,
+    output_path="results_with_hunter.csv"
+)
+```
+
+**CSV Input Format** (`sample_input.csv`):
+```csv
+first_name,last_name,domain
+Aliyah,Wimbish,ngc.com
+John,Doe,example.com
+Jane,Smith,company.com
+```
+
+**CSV Output Format** (auto-generated with timestamp):
+```csv
+first_name,last_name,domain,email,status
+Aliyah,Wimbish,ngc.com,aliyah.wimbish@ngc.com,FOUND
+John,Doe,example.com,,NOT FOUND
+Jane,Smith,company.com,jane.smith@company.com,FOUND
 ```
 
 ## Contributing Guidelines
